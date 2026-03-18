@@ -8,10 +8,11 @@ from homeassistant.components.sensor import SensorEntity, SensorEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import COORDINATOR, DOMAIN
+from .const import CONF_ZONE_ENTITY_ID, CONF_ZONE_NAME, COORDINATOR, DOMAIN
 from .coordinator import AIR_QUALITY_FIELDS
 
 AQI_FIELDS = {field for field in AIR_QUALITY_FIELDS if "aqi" in field}
@@ -83,8 +84,28 @@ class OpenMeteoSensorEntity(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry: ConfigEntry, description: OpenMeteoSensorDescription) -> None:
         super().__init__(coordinator)
         self.entity_description = description
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_name = description.name
+
+        zone_name = entry.data.get(CONF_ZONE_NAME)
+        self._attr_suggested_area = zone_name if zone_name else None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information."""
+        zone_name = self._entry.data.get(CONF_ZONE_NAME, "Manual coordinates")
+        identifiers = {(DOMAIN, self._entry.entry_id)}
+
+        return DeviceInfo(
+            identifiers=identifiers,
+            name=f"Open-Meteo Air Quality ({zone_name})",
+            manufacturer="Open-Meteo",
+            model="Air Quality API",
+            configuration_url=(
+                f"https://www.openstreetmap.org/?mlat={self._entry.data.get('latitude')}&mlon={self._entry.data.get('longitude')}"
+            ),
+        )
 
     @property
     def native_value(self):
@@ -101,4 +122,6 @@ class OpenMeteoSensorEntity(CoordinatorEntity, SensorEntity):
             "longitude": meta.get("longitude"),
             "timezone": meta.get("timezone"),
             "elevation": meta.get("elevation"),
+            "zone_entity_id": self._entry.data.get(CONF_ZONE_ENTITY_ID),
+            "zone_name": self._entry.data.get(CONF_ZONE_NAME),
         }

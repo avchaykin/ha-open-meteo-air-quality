@@ -3,12 +3,34 @@
     "step": {
       "user": {
         "title": "Open-Meteo Air Quality",
-        "description": "Set location for air quality data",
+        "description": "Choose location source",
+        "data": {
+          "source": "Source"
+        }
+      },
+      "zone": {
+        "title": "Open-Meteo Air Quality",
+        "description": "Pick a Home Assistant zone",
+        "data": {
+          "zone_entity_id": "Zone",
+          "device_name": "Device name (optional)"
+        }
+      },
+      "manual": {
+        "title": "Open-Meteo Air Quality",
+        "description": "Enter coordinates manually",
         "data": {
           "latitude": "Latitude",
-          "longitude": "Longitude"
+          "longitude": "Longitude",
+          "device_name": "Device name (optional)"
         }
       }
+    },
+    "abort": {
+      "no_zones": "No Home Assistant zones found",
+      "zone_not_found": "Selected zone was not found",
+      "zone_without_coordinates": "Selected zone has no coordinates",
+      "already_configured": "This location is already configured"
     }
   },
   "options": {

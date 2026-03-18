@@ -3,12 +3,34 @@
     "step": {
       "user": {
         "title": "Open-Meteo Air Quality",
-        "description": "Настройка локации для получения данных качества воздуха",
+        "description": "Выберите источник локации",
+        "data": {
+          "source": "Источник"
+        }
+      },
+      "zone": {
+        "title": "Open-Meteo Air Quality",
+        "description": "Выберите зону Home Assistant",
+        "data": {
+          "zone_entity_id": "Зона",
+          "device_name": "Имя устройства (опционально)"
+        }
+      },
+      "manual": {
+        "title": "Open-Meteo Air Quality",
+        "description": "Введите координаты вручную",
         "data": {
           "latitude": "Широта",
-          "longitude": "Долгота"
+          "longitude": "Долгота",
+          "device_name": "Имя устройства (опционально)"
         }
       }
+    },
+    "abort": {
+      "no_zones": "В Home Assistant не найдено зон",
+      "zone_not_found": "Выбранная зона не найдена",
+      "zone_without_coordinates": "У выбранной зоны нет координат",
+      "already_configured": "Эта локация уже настроена"
     }
   },
   "options": {
