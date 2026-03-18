@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Open-Meteo Air Quality",
+        "description": "Настройка локации для получения данных качества воздуха",
+        "data": {
+          "latitude": "Широта",
+          "longitude": "Долгота"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Open-Meteo Air Quality",
+        "description": "Параметры обновления",
+        "data": {
+          "scan_interval": "Интервал обновления (минуты)"
+        }
+      }
+    }
+  }
+}
