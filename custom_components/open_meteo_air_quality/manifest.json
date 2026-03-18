@@ -1,0 +1,11 @@
+{
+  "domain": "open_meteo_air_quality",
+  "name": "Open-Meteo Air Quality",
+  "codeowners": ["@avchaykin"],
+  "config_flow": true,
+  "documentation": "https://github.com/avchaykin/ha-open-meteo-air-quality",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.0.1"
+}
