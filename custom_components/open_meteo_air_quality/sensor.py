@@ -37,6 +37,30 @@ def _pretty_name(field: str) -> str:
     return field.replace("_", " ").upper()
 
 
+def _icon_for_field(field: str) -> str | None:
+    if "pollen" in field:
+        return "mdi:flower-pollen"
+    if field in {"pm10", "pm2_5", "dust"}:
+        return "mdi:blur"
+    if field == "carbon_monoxide":
+        return "mdi:molecule-co"
+    if field == "nitrogen_dioxide":
+        return "mdi:molecule"
+    if field == "sulphur_dioxide":
+        return "mdi:molecule"
+    if field == "ozone":
+        return "mdi:weather-windy"
+    if field == "ammonia":
+        return "mdi:molecule"
+    if "aqi" in field:
+        return "mdi:gauge"
+    if field in {"uv_index", "uv_index_clear_sky"}:
+        return "mdi:weather-sunny-alert"
+    if field == "aerosol_optical_depth":
+        return "mdi:weather-hazy"
+    return "mdi:chart-line"
+
+
 def _unit_for_field(field: str):
     if field in MICROGRAM_FIELDS:
         return CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
@@ -56,6 +80,7 @@ SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
         key=field,
         name=_pretty_name(field),
         native_unit_of_measurement=_unit_for_field(field),
+        icon=_icon_for_field(field),
         api_key=field,
     )
     for field in AIR_QUALITY_FIELDS
