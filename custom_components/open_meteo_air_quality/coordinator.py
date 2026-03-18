@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -96,15 +97,47 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
         hourly = payload.get("hourly", {})
         values: dict[str, float | int | None] = {}
 
+        index = self._resolve_current_hour_index(payload)
+
         for field in AIR_QUALITY_FIELDS:
             series = hourly.get(field)
-            values[field] = series[0] if isinstance(series, list) and series else None
+            values[field] = self._series_value(series, index)
 
         values["_meta"] = {
             "latitude": payload.get("latitude"),
             "longitude": payload.get("longitude"),
             "timezone": payload.get("timezone"),
             "elevation": payload.get("elevation"),
+            "selected_time": (hourly.get("time") or [None])[index] if hourly.get("time") else None,
         }
 
         return values
+
+    def _resolve_current_hour_index(self, payload: dict) -> int:
+        hourly = payload.get("hourly", {})
+        times = hourly.get("time")
+        if not isinstance(times, list) or not times:
+            return 0
+
+        tz_name = payload.get("timezone") or "UTC"
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz = ZoneInfo("UTC")
+
+        now_key = datetime.now(tz).replace(minute=0, second=0, microsecond=0).strftime(
+            "%Y-%m-%dT%H:00"
+        )
+        if now_key in times:
+            return times.index(now_key)
+
+        # Fallback: первая доступная точка.
+        return 0
+
+    @staticmethod
+    def _series_value(series, index: int):
+        if not isinstance(series, list) or not series:
+            return None
+        if index < len(series):
+            return series[index]
+        return series[0]
