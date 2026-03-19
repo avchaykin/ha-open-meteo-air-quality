@@ -1,67 +1,67 @@
 # Open-Meteo Air Quality (Home Assistant)
 
-Custom integration для Home Assistant, получающая показатели качества воздуха из Open-Meteo Air Quality API.
+A custom Home Assistant integration that fetches air quality metrics from the Open-Meteo Air Quality API.
 
-## Возможности
+## Features
 
-- Настройка через UI без `configuration.yaml`
-- Два режима добавления локации:
-  - через зону Home Assistant
-  - вручную по координатам
-- Поддержка нескольких устройств (multi-entry) для разных зон/локаций
-- `DataUpdateCoordinator` с обновлением по расписанию
-- Настройка `scan_interval` через Options (без перезапуска)
-- Сенсоры для ключевых полей Open-Meteo Air Quality:
+- UI-based setup (no `configuration.yaml` required)
+- Two location source modes:
+  - Home Assistant zone
+  - Manual coordinates
+- Multi-entry support for multiple locations/zones
+- `DataUpdateCoordinator` with scheduled polling
+- Configurable `scan_interval` via Options (no restart required)
+- Sensors for key Open-Meteo Air Quality fields:
   - European AQI / US AQI (+ breakdown)
   - PM10 / PM2.5
   - NO2 / SO2 / O3 / CO / ammonia / dust
   - UV index / UV clear sky
-  - pollen (alder, birch, grass, mugwort, olive, ragweed)
-- MDI-иконки для интеграции и сенсоров (в т.ч. `mdi:flower-pollen` для pollen)
+  - Pollen (alder, birch, grass, mugwort, olive, ragweed)
+- MDI icons for integration and sensors (including `mdi:flower-pollen` for pollen)
 
-## Установка через HACS
+## Installation via HACS
 
-1. HACS → **Integrations** → меню (⋮) → **Custom repositories**
-2. Добавить репозиторий: `https://github.com/avchaykin/ha-open-meteo-air-quality`
+1. HACS → **Integrations** → menu (⋮) → **Custom repositories**
+2. Add repository: `https://github.com/avchaykin/ha-open-meteo-air-quality`
 3. Category: **Integration**
-4. Установить **Open-Meteo Air Quality**
+4. Install **Open-Meteo Air Quality**
 5. Home Assistant → **Settings → Devices & Services → Add Integration**
-6. Найти **Open-Meteo Air Quality** и выбрать источник локации:
-   - Home Assistant zone, или
-   - manual coordinates
+6. Select **Open-Meteo Air Quality** and choose location source:
+   - Home Assistant zone, or
+   - Manual coordinates
 
-> После добавления интеграция настраивается полностью через UI.
+> After adding, all integration settings are managed from the UI.
 
-## Конфигурация
+## Configuration
 
-В Options доступен параметр:
-- `scan_interval` — интервал обновления в минутах (5–180)
+Available in Options:
+- `scan_interval` — update interval in minutes (5–180)
 
-## Обновление версии для HACS (для автора проекта)
+## HACS Release Workflow (for maintainers)
 
-### Штатный процесс
+### Standard release process
 
-1. Обновить версию в `custom_components/open_meteo_air_quality/manifest.json`.
-2. Закоммитить изменения в `main`.
-3. Создать тег `vX.Y.Z` и запушить его.
-4. Создать GitHub Release на этот тег.
-5. Проверить в HACS: **Check for updates**.
+1. Update version in `custom_components/open_meteo_air_quality/manifest.json`.
+2. Commit changes to `main`.
+3. Create and push tag `vX.Y.Z`.
+4. Create a GitHub Release for that tag.
+5. In HACS, run **Check for updates**.
 
-### Если обновление не появляется
+### If HACS does not show the update
 
-1. Убедиться, что версия в `manifest.json` увеличена.
-2. Проверить, что tag и GitHub Release созданы и совпадают по версии.
-3. Проверить формат тега: строго `vX.Y.Z`.
-4. В HACS выполнить reload/refresh и повторить проверку обновлений.
-5. Перезапустить Home Assistant, если кэш HACS не обновился.
-6. Проверить, что tag указывает на нужный коммит.
+1. Confirm `manifest.json` version was incremented.
+2. Confirm both tag and GitHub Release exist and match the same version.
+3. Confirm tag format is exactly `vX.Y.Z`.
+4. In HACS, reload/refresh and check updates again.
+5. Restart Home Assistant if HACS cache is stale.
+6. Verify the release tag points to the expected commit.
 
-## Статус
+## Status
 
-- Текущий релиз: `v0.2.0`
-- Репозиторий: https://github.com/avchaykin/ha-open-meteo-air-quality
+- Current release: `v0.2.1`
+- Repository: https://github.com/avchaykin/ha-open-meteo-air-quality
 
-## Дальше
+## Roadmap
 
-- Улучшить user-facing документацию (примеры карточек Lovelace)
-- Добавить автотесты (минимум smoke + config flow)
+- Improve user-facing documentation (Lovelace card examples)
+- Add automated tests (at least smoke + config flow)
