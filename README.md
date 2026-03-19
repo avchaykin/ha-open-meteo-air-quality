@@ -12,12 +12,7 @@ A custom Home Assistant integration that fetches air quality metrics from the Op
   - Manual coordinates
 - Multi-entry support for multiple locations/zones
 - Configurable `scan_interval` via integration Options
-- Sensors for key Open-Meteo Air Quality fields:
-  - European AQI / US AQI (+ breakdown)
-  - PM10 / PM2.5
-  - NO2 / SO2 / O3 / CO / ammonia / dust
-  - UV index / UV clear sky
-  - Pollen (alder, birch, grass, mugwort, olive, ragweed)
+- Sensors for AQI, pollutants, UV, and pollen
 
 ## Installation (HACS)
 
@@ -30,4 +25,19 @@ A custom Home Assistant integration that fetches air quality metrics from the Op
    - Home Assistant zone, or
    - Manual coordinates.
 
-> After adding, all integration settings are managed from the UI.
+## Air Quality Metrics Reference
+
+| Metric group | Sensors | Typical unit | Quick interpretation |
+|---|---|---:|---|
+| AQI (EU/US) | `european_aqi`, `us_aqi` (+ breakdown) | index | 0–50 good, 51–100 moderate, 101–150 unhealthy for sensitive groups, 151+ unhealthy |
+| PM2.5 | `pm2_5` | μg/m³ | 0–15 good, 16–45 moderate, 46–75 elevated, 76+ high |
+| PM10 | `pm10` | μg/m³ | 0–15 good, 16–45 moderate, 46–75 elevated, 76+ high |
+| Gases | `nitrogen_dioxide`, `sulphur_dioxide`, `ozone`, `carbon_monoxide`, `ammonia` | μg/m³ | lower is generally better; compare trends and local standards |
+| Dust | `dust` | μg/m³ | lower is generally better |
+| UV | `uv_index`, `uv_index_clear_sky` | index | 0–2 low, 3–5 moderate, 6–7 high, 8–10 very high, 11+ extreme |
+| Pollen | `alder/birch/grass/mugwort/olive/ragweed_pollen` | grains/m³ | very low, low, moderate, high, very high, extremely high |
+| Aerosol optical depth | `aerosol_optical_depth` | index | lower means clearer atmosphere |
+
+> Notes:
+> - The integration also exposes `scale_level` attribute for easier dashboard interpretation.
+> - Reference ranges are intended for quick orientation in Home Assistant dashboards.

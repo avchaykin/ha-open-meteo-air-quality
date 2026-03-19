@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -92,6 +93,88 @@ def _state_class_for_field(field: str) -> SensorStateClass | None:
     return None
 
 
+def _banded_label(value: float, bands: list[tuple[float, str]]) -> str:
+    for threshold, label in bands:
+        if value <= threshold:
+            return label
+    return bands[-1][1]
+
+
+def _scale_label(field: str, value: Any) -> str | None:
+    if value is None:
+        return None
+
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if "pollen" in field:
+        return _banded_label(
+            num,
+            [
+                (0, "none"),
+                (10, "very_low"),
+                (30, "low"),
+                (80, "moderate"),
+                (200, "high"),
+                (500, "very_high"),
+                (999999, "extremely_high"),
+            ],
+        )
+
+    if field in AQI_FIELDS:
+        return _banded_label(
+            num,
+            [
+                (50, "good"),
+                (100, "moderate"),
+                (150, "unhealthy_for_sensitive"),
+                (200, "unhealthy"),
+                (300, "very_unhealthy"),
+                (999999, "hazardous"),
+            ],
+        )
+
+    if field in {"uv_index", "uv_index_clear_sky"}:
+        return _banded_label(
+            num,
+            [
+                (2.99, "low"),
+                (5.99, "moderate"),
+                (7.99, "high"),
+                (10.99, "very_high"),
+                (999999, "extreme"),
+            ],
+        )
+
+    if field in {"pm2_5", "pm10"}:
+        # Reference: WHO-like interpretation bands for quick dashboard guidance.
+        return _banded_label(
+            num,
+            [
+                (15, "good"),
+                (45, "moderate"),
+                (75, "unhealthy_for_sensitive"),
+                (150, "unhealthy"),
+                (999999, "very_unhealthy"),
+            ],
+        )
+
+    if field == "aerosol_optical_depth":
+        return _banded_label(
+            num,
+            [
+                (0.1, "clear"),
+                (0.3, "light_haze"),
+                (0.6, "hazy"),
+                (999999, "very_hazy"),
+            ],
+        )
+
+    return None
+
+
 SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
     OpenMeteoSensorDescription(
         key=field,
@@ -159,6 +242,7 @@ class OpenMeteoSensorEntity(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self):
         """Return extra attributes."""
         meta = self.coordinator.data.get("_meta", {})
+        value = self.native_value
         return {
             "source": "open-meteo",
             "latitude": meta.get("latitude"),
@@ -167,4 +251,5 @@ class OpenMeteoSensorEntity(CoordinatorEntity, SensorEntity):
             "elevation": meta.get("elevation"),
             "zone_entity_id": self._entry.data.get(CONF_ZONE_ENTITY_ID),
             "zone_name": self._entry.data.get(CONF_ZONE_NAME),
+            "scale_level": _scale_label(self.entity_description.api_key, value),
         }
