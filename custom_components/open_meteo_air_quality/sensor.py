@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
 from homeassistant.core import HomeAssistant
@@ -26,6 +30,7 @@ MICROGRAM_FIELDS = {
     "ammonia",
     "dust",
 }
+POLLEN_UNIT = "grains/m³"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -64,14 +69,26 @@ def _icon_for_field(field: str) -> str | None:
 def _unit_for_field(field: str):
     if field in MICROGRAM_FIELDS:
         return CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
+    if "pollen" in field:
+        return POLLEN_UNIT
     if field in {"aerosol_optical_depth"}:
         return None
     if field in {"uv_index", "uv_index_clear_sky"}:
         return None
-    if "pollen" in field:
-        return None
     if field in AQI_FIELDS:
         return None
+    return None
+
+
+def _state_class_for_field(field: str) -> SensorStateClass | None:
+    if field in {"aerosol_optical_depth", "uv_index", "uv_index_clear_sky"}:
+        return SensorStateClass.MEASUREMENT
+    if field in MICROGRAM_FIELDS:
+        return SensorStateClass.MEASUREMENT
+    if "pollen" in field:
+        return SensorStateClass.MEASUREMENT
+    if field in AQI_FIELDS:
+        return SensorStateClass.MEASUREMENT
     return None
 
 
@@ -80,6 +97,7 @@ SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
         key=field,
         name=_pretty_name(field),
         native_unit_of_measurement=_unit_for_field(field),
+        state_class=_state_class_for_field(field),
         icon=_icon_for_field(field),
         api_key=field,
     )
