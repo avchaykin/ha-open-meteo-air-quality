@@ -4,7 +4,6 @@
   "codeowners": ["@avchaykin"],
   "config_flow": true,
   "documentation": "https://github.com/avchaykin/ha-open-meteo-air-quality",
-  "icon": "mdi:flower-pollen",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "requirements": [],
