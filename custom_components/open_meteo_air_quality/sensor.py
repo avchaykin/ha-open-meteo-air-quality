@@ -37,11 +37,7 @@ POLLEN_UNIT = "grains/m³"
 @dataclass(frozen=True, kw_only=True)
 class OpenMeteoSensorDescription(SensorEntityDescription):
     api_key: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class OpenMeteoForecastSensorDescription(SensorEntityDescription):
-    api_key: str
+    kind: str = "current"
 
 
 def _pretty_name(field: str) -> str:
@@ -180,7 +176,7 @@ def _scale_label(field: str, value: Any) -> str | None:
     return None
 
 
-SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
+CURRENT_SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
     OpenMeteoSensorDescription(
         key=field,
         name=_pretty_name(field),
@@ -188,18 +184,20 @@ SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
         state_class=_state_class_for_field(field),
         icon=_icon_for_field(field),
         api_key=field,
+        kind="current",
     )
     for field in AIR_QUALITY_FIELDS
 )
 
-POLLEN_NEXT_24H_SENSOR_DESCRIPTIONS: tuple[OpenMeteoForecastSensorDescription, ...] = tuple(
-    OpenMeteoForecastSensorDescription(
+POLLEN_NEXT_24H_SENSOR_DESCRIPTIONS: tuple[OpenMeteoSensorDescription, ...] = tuple(
+    OpenMeteoSensorDescription(
         key=f"{field}_next_24h_max",
         name=f"{_pretty_name(field)} NEXT 24H MAX",
         native_unit_of_measurement=POLLEN_UNIT,
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:flower-pollen-outline",
+        icon="mdi:flower-pollen",
         api_key=field,
+        kind="next_24h_max",
     )
     for field in POLLEN_FIELDS
 )
@@ -214,24 +212,22 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR]
 
     async_add_entities(
-        [
-            *(OpenMeteoSensorEntity(coordinator, entry, description) for description in SENSOR_DESCRIPTIONS),
-            *(
-                OpenMeteoPollenNext24hMaxSensorEntity(coordinator, entry, description)
-                for description in POLLEN_NEXT_24H_SENSOR_DESCRIPTIONS
-            ),
-        ]
+        OpenMeteoSensorEntity(coordinator, entry, description)
+        for description in (*CURRENT_SENSOR_DESCRIPTIONS, *POLLEN_NEXT_24H_SENSOR_DESCRIPTIONS)
     )
 
 
-class OpenMeteoBaseEntity(CoordinatorEntity, SensorEntity):
-    """Base entity for Open-Meteo sensors."""
+class OpenMeteoSensorEntity(CoordinatorEntity, SensorEntity):
+    """Representation of an Open-Meteo air quality sensor."""
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+    def __init__(self, coordinator, entry: ConfigEntry, description: OpenMeteoSensorDescription) -> None:
         super().__init__(coordinator)
+        self.entity_description = description
         self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_name = description.name
 
         zone_name = entry.data.get(CONF_ZONE_NAME)
         self._attr_suggested_area = zone_name if zone_name else None
@@ -253,9 +249,20 @@ class OpenMeteoBaseEntity(CoordinatorEntity, SensorEntity):
         )
 
     @property
-    def _common_attributes(self) -> dict[str, Any]:
+    def native_value(self):
+        """Return the state of the sensor."""
+        if self.entity_description.kind == "next_24h_max":
+            pollen_forecast = self.coordinator.data.get("_pollen_forecast", {})
+            return pollen_forecast.get(self.entity_description.api_key, {}).get("next_24h_max")
+
+        return self.coordinator.data.get(self.entity_description.api_key)
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes."""
         meta = self.coordinator.data.get("_meta", {})
-        return {
+        value = self.native_value
+        attributes = {
             "source": "open-meteo",
             "latitude": meta.get("latitude"),
             "longitude": meta.get("longitude"),
@@ -263,70 +270,24 @@ class OpenMeteoBaseEntity(CoordinatorEntity, SensorEntity):
             "elevation": meta.get("elevation"),
             "zone_entity_id": self._entry.data.get(CONF_ZONE_ENTITY_ID),
             "zone_name": self._entry.data.get(CONF_ZONE_NAME),
+            "scale_level": _scale_label(self.entity_description.api_key, value),
         }
 
+        pollen_forecast = self.coordinator.data.get("_pollen_forecast", {})
+        field_forecast = pollen_forecast.get(self.entity_description.api_key, {})
 
-class OpenMeteoSensorEntity(OpenMeteoBaseEntity):
-    """Representation of an Open-Meteo air quality sensor."""
-
-    def __init__(self, coordinator, entry: ConfigEntry, description: OpenMeteoSensorDescription) -> None:
-        super().__init__(coordinator, entry)
-        self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_name = description.name
-
-    @property
-    def native_value(self):
-        """Return the state of the sensor."""
-        return self.coordinator.data.get(self.entity_description.api_key)
-
-    @property
-    def extra_state_attributes(self):
-        """Return extra attributes."""
-        attrs = self._common_attributes
-        value = self.native_value
-        attrs["scale_level"] = _scale_label(self.entity_description.api_key, value)
+        if self.entity_description.kind == "next_24h_max":
+            attributes["forecast_window"] = "next_24h"
+            return attributes
 
         if self.entity_description.api_key in POLLEN_FIELDS:
-            pollen_forecast = self.coordinator.data.get("_pollen_forecast", {}).get(
-                self.entity_description.api_key,
-                {},
-            )
-            attrs["forecast_today_max"] = pollen_forecast.get("today_max")
-            attrs["forecast_tomorrow_max"] = pollen_forecast.get("tomorrow_max")
-            attrs["forecast_day_2_max"] = pollen_forecast.get("day_2_max")
+            daily_max = field_forecast.get("daily_max", {})
+            day_keys = sorted(daily_max.keys())
+            if day_keys:
+                attributes["forecast_today_max"] = daily_max.get(day_keys[0])
+            if len(day_keys) > 1:
+                attributes["forecast_tomorrow_max"] = daily_max.get(day_keys[1])
+            for offset, day_key in enumerate(day_keys[2:], start=2):
+                attributes[f"forecast_day_{offset}_max"] = daily_max.get(day_key)
 
-        return attrs
-
-
-class OpenMeteoPollenNext24hMaxSensorEntity(OpenMeteoBaseEntity):
-    """Representation of pollen max value for next 24 hours."""
-
-    def __init__(
-        self,
-        coordinator,
-        entry: ConfigEntry,
-        description: OpenMeteoForecastSensorDescription,
-    ) -> None:
-        super().__init__(coordinator, entry)
-        self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_name = description.name
-
-    @property
-    def native_value(self):
-        """Return max pollen forecast for next 24h."""
-        pollen_forecast = self.coordinator.data.get("_pollen_forecast", {}).get(
-            self.entity_description.api_key,
-            {},
-        )
-        return pollen_forecast.get("next_24h_max")
-
-    @property
-    def extra_state_attributes(self):
-        """Return extra attributes."""
-        attrs = self._common_attributes
-        value = self.native_value
-        attrs["source_sensor"] = self.entity_description.api_key
-        attrs["scale_level"] = _scale_label(self.entity_description.api_key, value)
-        return attrs
+        return attributes

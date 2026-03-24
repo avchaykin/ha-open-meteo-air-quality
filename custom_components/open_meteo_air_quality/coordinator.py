@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
@@ -53,7 +54,7 @@ AIR_QUALITY_FIELDS: tuple[str, ...] = (
 POLLEN_FIELDS: tuple[str, ...] = tuple(field for field in AIR_QUALITY_FIELDS if "pollen" in field)
 
 
-class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int | None]]):
+class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinate Open-Meteo Air Quality API fetches."""
 
     def __init__(self, hass: HomeAssistant, entry) -> None:
@@ -72,7 +73,7 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
             update_interval=scan_interval,
         )
 
-    async def _async_update_data(self) -> dict[str, float | int | None]:
+    async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from Open-Meteo Air Quality API."""
         latitude = self.entry.data["latitude"]
         longitude = self.entry.data["longitude"]
@@ -97,7 +98,7 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
             raise UpdateFailed(f"Error requesting Open-Meteo API: {err}") from err
 
         hourly = payload.get("hourly", {})
-        values: dict[str, float | int | None] = {}
+        values: dict[str, Any] = {}
 
         index = self._resolve_current_hour_index(payload)
 
@@ -105,15 +106,14 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
             series = hourly.get(field)
             values[field] = self._series_value(series, index)
 
-        tz_name = payload.get("timezone") or "UTC"
         values["_meta"] = {
             "latitude": payload.get("latitude"),
             "longitude": payload.get("longitude"),
-            "timezone": tz_name,
+            "timezone": payload.get("timezone"),
             "elevation": payload.get("elevation"),
             "selected_time": (hourly.get("time") or [None])[index] if hourly.get("time") else None,
         }
-        values["_pollen_forecast"] = self._build_pollen_forecast(hourly, tz_name)
+        values["_pollen_forecast"] = self._build_pollen_forecast(payload, index)
 
         return values
 
@@ -138,84 +138,63 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
         # Fallback: первая доступная точка.
         return 0
 
-    def _build_pollen_forecast(self, hourly: dict, tz_name: str) -> dict[str, dict[str, float | None]]:
+    def _build_pollen_forecast(self, payload: dict[str, Any], current_index: int) -> dict[str, dict[str, Any]]:
+        """Build compact forecast aggregates for pollen metrics."""
+        hourly = payload.get("hourly", {})
         times = hourly.get("time")
         if not isinstance(times, list) or not times:
             return {}
 
+        tz_name = payload.get("timezone") or "UTC"
         try:
             tz = ZoneInfo(tz_name)
         except Exception:
             tz = ZoneInfo("UTC")
 
-        now = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
-        today = now.date()
-        tomorrow = (now + timedelta(days=1)).date()
-        day_2 = (now + timedelta(days=2)).date()
-        horizon_end = now + timedelta(hours=24)
-
-        points: list[datetime] = []
-        for raw in times:
-            if not isinstance(raw, str):
-                points.append(None)
-                continue
+        parsed_times: list[datetime] = []
+        for ts in times:
             try:
-                dt = datetime.fromisoformat(raw)
-            except ValueError:
-                points.append(None)
-                continue
+                parsed_times.append(datetime.fromisoformat(ts).replace(tzinfo=tz))
+            except Exception:
+                parsed_times.append(None)
 
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=tz)
-            else:
-                dt = dt.astimezone(tz)
-            points.append(dt)
+        forecast: dict[str, dict[str, Any]] = {}
 
-        forecast: dict[str, dict[str, float | None]] = {}
         for field in POLLEN_FIELDS:
             series = hourly.get(field)
             if not isinstance(series, list) or not series:
-                forecast[field] = {
-                    "today_max": None,
-                    "tomorrow_max": None,
-                    "day_2_max": None,
-                    "next_24h_max": None,
-                }
                 continue
 
-            today_values: list[float] = []
-            tomorrow_values: list[float] = []
-            day_2_values: list[float] = []
-            next_24h_values: list[float] = []
-
-            for idx, dt in enumerate(points):
-                if dt is None or idx >= len(series):
-                    continue
-
-                value = series[idx]
-                if value is None:
+            daily_max: dict[str, float] = {}
+            for idx, raw_value in enumerate(series):
+                if idx >= len(parsed_times):
+                    break
+                dt = parsed_times[idx]
+                if dt is None or raw_value is None:
                     continue
 
                 try:
-                    num = float(value)
+                    value = float(raw_value)
                 except (TypeError, ValueError):
                     continue
 
-                d = dt.date()
-                if d == today:
-                    today_values.append(num)
-                elif d == tomorrow:
-                    tomorrow_values.append(num)
-                elif d == day_2:
-                    day_2_values.append(num)
+                day_key = dt.date().isoformat()
+                if day_key not in daily_max or value > daily_max[day_key]:
+                    daily_max[day_key] = value
 
-                if now <= dt < horizon_end:
-                    next_24h_values.append(num)
+            next_24h_values: list[float] = []
+            upper_bound = min(len(series), current_index + 24)
+            for idx in range(current_index, upper_bound):
+                raw_value = series[idx]
+                if raw_value is None:
+                    continue
+                try:
+                    next_24h_values.append(float(raw_value))
+                except (TypeError, ValueError):
+                    continue
 
             forecast[field] = {
-                "today_max": max(today_values) if today_values else None,
-                "tomorrow_max": max(tomorrow_values) if tomorrow_values else None,
-                "day_2_max": max(day_2_values) if day_2_values else None,
+                "daily_max": daily_max,
                 "next_24h_max": max(next_24h_values) if next_24h_values else None,
             }
 
