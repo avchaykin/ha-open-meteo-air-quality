@@ -13,6 +13,9 @@ A custom Home Assistant integration that fetches air quality metrics from the Op
 - Multi-entry support for multiple locations/zones
 - Configurable `scan_interval` via integration Options
 - Sensors for AQI, pollutants, UV, and pollen
+- Pollen forecast helpers:
+  - Daily max attributes on pollen sensors (`forecast_today_max`, `forecast_tomorrow_max`, `forecast_day_2_max`)
+  - Dedicated "next 24h max" pollen sensors for automations
 
 ## Installation (HACS)
 

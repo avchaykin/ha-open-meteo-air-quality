@@ -50,6 +50,8 @@ AIR_QUALITY_FIELDS: tuple[str, ...] = (
     "ragweed_pollen",
 )
 
+POLLEN_FIELDS: tuple[str, ...] = tuple(field for field in AIR_QUALITY_FIELDS if "pollen" in field)
+
 
 class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int | None]]):
     """Coordinate Open-Meteo Air Quality API fetches."""
@@ -103,13 +105,15 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
             series = hourly.get(field)
             values[field] = self._series_value(series, index)
 
+        tz_name = payload.get("timezone") or "UTC"
         values["_meta"] = {
             "latitude": payload.get("latitude"),
             "longitude": payload.get("longitude"),
-            "timezone": payload.get("timezone"),
+            "timezone": tz_name,
             "elevation": payload.get("elevation"),
             "selected_time": (hourly.get("time") or [None])[index] if hourly.get("time") else None,
         }
+        values["_pollen_forecast"] = self._build_pollen_forecast(hourly, tz_name)
 
         return values
 
@@ -133,6 +137,89 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, float | int
 
         # Fallback: первая доступная точка.
         return 0
+
+    def _build_pollen_forecast(self, hourly: dict, tz_name: str) -> dict[str, dict[str, float | None]]:
+        times = hourly.get("time")
+        if not isinstance(times, list) or not times:
+            return {}
+
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz = ZoneInfo("UTC")
+
+        now = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
+        today = now.date()
+        tomorrow = (now + timedelta(days=1)).date()
+        day_2 = (now + timedelta(days=2)).date()
+        horizon_end = now + timedelta(hours=24)
+
+        points: list[datetime] = []
+        for raw in times:
+            if not isinstance(raw, str):
+                points.append(None)
+                continue
+            try:
+                dt = datetime.fromisoformat(raw)
+            except ValueError:
+                points.append(None)
+                continue
+
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=tz)
+            else:
+                dt = dt.astimezone(tz)
+            points.append(dt)
+
+        forecast: dict[str, dict[str, float | None]] = {}
+        for field in POLLEN_FIELDS:
+            series = hourly.get(field)
+            if not isinstance(series, list) or not series:
+                forecast[field] = {
+                    "today_max": None,
+                    "tomorrow_max": None,
+                    "day_2_max": None,
+                    "next_24h_max": None,
+                }
+                continue
+
+            today_values: list[float] = []
+            tomorrow_values: list[float] = []
+            day_2_values: list[float] = []
+            next_24h_values: list[float] = []
+
+            for idx, dt in enumerate(points):
+                if dt is None or idx >= len(series):
+                    continue
+
+                value = series[idx]
+                if value is None:
+                    continue
+
+                try:
+                    num = float(value)
+                except (TypeError, ValueError):
+                    continue
+
+                d = dt.date()
+                if d == today:
+                    today_values.append(num)
+                elif d == tomorrow:
+                    tomorrow_values.append(num)
+                elif d == day_2:
+                    day_2_values.append(num)
+
+                if now <= dt < horizon_end:
+                    next_24h_values.append(num)
+
+            forecast[field] = {
+                "today_max": max(today_values) if today_values else None,
+                "tomorrow_max": max(tomorrow_values) if tomorrow_values else None,
+                "day_2_max": max(day_2_values) if day_2_values else None,
+                "next_24h_max": max(next_24h_values) if next_24h_values else None,
+            }
+
+        return forecast
 
     @staticmethod
     def _series_value(series, index: int):
