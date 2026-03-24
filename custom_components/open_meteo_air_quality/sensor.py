@@ -282,7 +282,7 @@ class OpenMeteoSensorEntity(CoordinatorEntity, SensorEntity):
 
         if self.entity_description.api_key in POLLEN_FIELDS:
             daily_max = field_forecast.get("daily_max", {})
-            day_keys = sorted(daily_max.keys())
+            day_keys = field_forecast.get("ordered_dates") or sorted(daily_max.keys())
             if day_keys:
                 attributes["forecast_today_max"] = daily_max.get(day_keys[0])
             if len(day_keys) > 1:

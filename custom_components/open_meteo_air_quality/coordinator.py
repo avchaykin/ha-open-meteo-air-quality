@@ -193,8 +193,13 @@ class OpenMeteoAirQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except (TypeError, ValueError):
                     continue
 
+            current_dt = parsed_times[current_index] if current_index < len(parsed_times) else None
+            today_key = (current_dt.date().isoformat() if current_dt else datetime.now(tz).date().isoformat())
+            ordered_dates = [day for day in sorted(daily_max.keys()) if day >= today_key]
+
             forecast[field] = {
                 "daily_max": daily_max,
+                "ordered_dates": ordered_dates,
                 "next_24h_max": max(next_24h_values) if next_24h_values else None,
             }
 
